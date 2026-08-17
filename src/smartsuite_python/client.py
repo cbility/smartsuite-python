@@ -59,10 +59,35 @@ FilterComparison = Literal[
 ]
 
 
+FilterDateMode = Literal[
+    "today", "yesterday", "one_week_ago", "one_week_from_now",
+    "one_month_ago", "one_month_from_now", "one_year_ago",
+    "one_year_from_now", "next_number_of_days", "past_number_of_days",
+    "date_range", "exact_date",
+]
+
+
+class FilterDateValue(TypedDict):
+    """Value used when filtering date and due-date fields."""
+
+    date_mode: FilterDateMode
+    date_mode_value: str | int | list[str]
+
+
+FilterValue = str | int | float | bool | list[str] | FilterDateValue | None
+
+
 class FilterElement(TypedDict):
+    """One SmartSuite record filter.
+
+    ``field`` is the field slug. ``comparison`` must be supported by that
+    field's type, and ``value`` is a scalar, a list of strings, ``None`` for
+    empty checks, or a :class:`FilterDateValue` for date comparisons.
+    """
+
     field: str
     comparison: FilterComparison
-    value: Any  # SmartSuite cell value or {date_mode, date_mode_value}
+    value: FilterValue
 
 
 class _FilterBody(TypedDict):
@@ -210,6 +235,24 @@ class SmartSuiteClient:
         fields_to_filter: FilterElement | list[FilterElement],
         operator: Literal["and", "or"] = "and",
     ) -> list[dict]:
+        """Get records matching one or more field filters.
+
+        Each filter has a field slug, a comparison supported by that field's
+        type, and a comparison value. For example::
+
+            client.filter_records(
+                table_id="table-id",
+                fields_to_filter={
+                    "field": "status",
+                    "comparison": "is",
+                    "value": "Complete",
+                },
+            )
+
+        Pass a list of filter objects to combine multiple conditions with
+        ``operator``. Date filters use ``{"date_mode": ...,
+        "date_mode_value": ...}`` as their value.
+        """
         fields: list[FilterElement] = fields_to_filter if isinstance(fields_to_filter, list) else [fields_to_filter]
         body: FilterBody = {"filter": {"operator": operator, "fields": fields}}
         url = f"{self.base_url}/applications/{table_id}/records/list/"
