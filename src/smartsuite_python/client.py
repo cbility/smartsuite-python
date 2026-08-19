@@ -3,6 +3,7 @@
 import time
 import logging
 from collections import deque
+from dataclasses import dataclass, asdict
 from typing import Any, Literal, TypedDict, cast
 
 import requests
@@ -11,12 +12,15 @@ import requests
 
 # region configuration
 
-log = logging.getLogger('smartsuite_python')
-log.addHandler(logging.NullHandler()) # avoid defaults being applied if logging is not configured in importing application
+log = logging.getLogger("smartsuite_python")
+log.addHandler(
+    logging.NullHandler()
+)  # avoid defaults being applied if logging is not configured in importing application
 
 # endregion configuration
 
 # region helpers
+
 
 class _LimitedList:
     """Tracks the timestamps of the most recent N requests for rate limiting."""
@@ -38,46 +42,76 @@ class _LimitedList:
 def _split_into_batches(batch_size: int, items: list) -> list[list]:
     return [items[i : i + batch_size] for i in range(0, len(items), batch_size)]
 
+
 # endregion helpers
 
 # region types
 
 FilterComparison = Literal[
     # string
-    "is", "is_not", "is_empty", "is_not_empty", "contains", "not_contains",
+    "is",
+    "is_not",
+    "is_empty",
+    "is_not_empty",
+    "contains",
+    "not_contains",
     # number
-    "is_equal_to", "is_not_equal_to", "is_greater_than", "is_less_than",
-    "is_equal_or_greater_than", "is_equal_or_less_than",
+    "is_equal_to",
+    "is_not_equal_to",
+    "is_greater_than",
+    "is_less_than",
+    "is_equal_or_greater_than",
+    "is_equal_or_less_than",
     # select
-    "is_any_of", "is_none_of", "has_any_of", "has_all_of", "is_exactly", "has_none_of",
+    "is_any_of",
+    "is_none_of",
+    "has_any_of",
+    "has_all_of",
+    "is_exactly",
+    "has_none_of",
     # date
-    "is_before", "is_on_or_before", "is_on_or_after",
+    "is_before",
+    "is_on_or_before",
+    "is_on_or_after",
     # due date
-    "is_overdue", "is_not_overdue",
+    "is_overdue",
+    "is_not_overdue",
     # files
-    "file_name_contains", "file_type_is",
+    "file_name_contains",
+    "file_type_is",
 ]
 
 
 FilterDateMode = Literal[
-    "today", "yesterday", "one_week_ago", "one_week_from_now",
-    "one_month_ago", "one_month_from_now", "one_year_ago",
-    "one_year_from_now", "next_number_of_days", "past_number_of_days",
-    "date_range", "exact_date",
+    "today",
+    "yesterday",
+    "one_week_ago",
+    "one_week_from_now",
+    "one_month_ago",
+    "one_month_from_now",
+    "one_year_ago",
+    "one_year_from_now",
+    "next_number_of_days",
+    "past_number_of_days",
+    "date_range",
+    "exact_date",
 ]
 
 
-class FilterDateValue(TypedDict):
+@dataclass
+class FilterDateValue:
     """Value used when filtering date and due-date fields."""
 
     date_mode: FilterDateMode
     date_mode_value: str | int | list[str]
 
 
+# Define FilterValue after FilterDateValue is defined
 FilterValue = str | int | float | bool | list[str] | FilterDateValue | None
 
 
-class FilterElement(TypedDict):
+@dataclass
+class FilterElement:
     """One SmartSuite record filter.
 
     ``field`` is the field slug. ``comparison`` must be supported by that
@@ -90,26 +124,32 @@ class FilterElement(TypedDict):
     value: FilterValue
 
 
-class _FilterBody(TypedDict):
+@dataclass
+class _FilterBody:
     operator: Literal["and", "or"]
     fields: list[FilterElement]
 
 
-class FilterBody(TypedDict):
+@dataclass
+class FilterBody:
     filter: _FilterBody
 
 
-class SortElement(TypedDict, total=False):
+@dataclass
+class SortElement:
     field: str
     direction: Literal["asc", "desc"]
 
+
+# Keep as TypedDict for response handling
 class BulkRequestResponse(TypedDict):
-     items: list[dict]
-     
+    items: list[dict]
+
 
 # endregion types
 
 # region main class
+
 
 class SmartSuiteClient:
     """A Python client for the SmartSuite API.
@@ -119,7 +159,7 @@ class SmartSuiteClient:
     Args:
         account_id: SmartSuite account ID (Account-Id header value).
         api_token:  SmartSuite API token.
-        max_requests_per_second: maximum requests per second made by the client. 
+        max_requests_per_second: maximum requests per second made by the client.
             Set by default to 2 to allow the client to avoid rate limiting up to 125% of the configured limit for your plan.
             Set this to 5 to allow more frequent requests, but note that rate limiting will occur earlier.
             See https://help.smartsuite.com/en/articles/4759983-smartsuite-limits and https://developers.smartsuite.com/docs/rate-limits.
@@ -164,7 +204,7 @@ class SmartSuiteClient:
     def request(
         self,
         endpoint: str,
-        method: Literal["GET", "POST", "PATCH", "PUT", "DELETE"]= "GET",
+        method: Literal["GET", "POST", "PATCH", "PUT", "DELETE"] = "GET",
         body: Any | None = None,
         max_retries: int = 3,
         initial_retry_delay: float = 30.0,
@@ -214,10 +254,14 @@ class SmartSuiteClient:
                         current_delay *= 2
                         continue
                     else:
-                        log.error(f"{max_retries} retries failed due to rate limiting - are you making too many requests in parallel? See https://developers.smartsuite.com/docs/rate-limits.")
-                        raise # re-raise when retries exceeded
-                log.error(f"SmartSuite returned a {status_code} error with the following content: '{error_text}'")
-                raise # re-raise for non rate limiting errors
+                        log.error(
+                            f"{max_retries} retries failed due to rate limiting - are you making too many requests in parallel? See https://developers.smartsuite.com/docs/rate-limits."
+                        )
+                        raise  # re-raise when retries exceeded
+                log.error(
+                    f"SmartSuite returned a {status_code} error with the following content: '{error_text}'"
+                )
+                raise  # re-raise for non rate limiting errors
 
     # endregion request method
 
@@ -232,7 +276,7 @@ class SmartSuiteClient:
     def filter_records(
         self,
         table_id: str,
-        fields_to_filter: FilterElement | list[FilterElement],
+        fields_to_filter: list[FilterElement],
         operator: Literal["and", "or"] = "and",
     ) -> list[dict]:
         """Get records matching one or more field filters.
@@ -242,19 +286,17 @@ class SmartSuiteClient:
 
             client.filter_records(
                 table_id="table-id",
-                fields_to_filter={
-                    "field": "status",
-                    "comparison": "is",
-                    "value": "Complete",
-                },
+                fields_to_filter=[
+                    FilterElement(field="status", comparison="is", value="Complete"),
+                ],
             )
 
         Pass a list of filter objects to combine multiple conditions with
-        ``operator``. Date filters use ``{"date_mode": ...,
-        "date_mode_value": ...}`` as their value.
+        ``operator``. Date filters use ``FilterDateValue`` for their value.
         """
-        fields: list[FilterElement] = fields_to_filter if isinstance(fields_to_filter, list) else [fields_to_filter]
-        body: FilterBody = {"filter": {"operator": operator, "fields": fields}}
+        # Convert dataclasses to dicts for JSON serialization
+        fields_as_dicts = [asdict(f) for f in fields_to_filter]
+        body = {"filter": {"operator": operator, "fields": fields_as_dicts}}
         url = f"{self.base_url}/applications/{table_id}/records/list/"
         response = self.request(url, method="POST", body=body)
         return response.json()["items"]
@@ -262,28 +304,20 @@ class SmartSuiteClient:
     def get_records_by_field_values(
         self, table_id: str, field_slug: str, field_values: list
     ) -> list[dict]:
-        body: FilterBody = {
-            "filter": {
-                "operator": "or",
-                "fields": [
-                    {"field": field_slug, "comparison": "is", "value": v}
-                    for v in field_values
-                ],
-            }
-        }
+        fields = [
+            FilterElement(field=field_slug, comparison="is", value=v)
+            for v in field_values
+        ]
+        body = {"filter": {"operator": "or", "fields": [asdict(f) for f in fields]}}
         url = f"{self.base_url}/applications/{table_id}/records/list/"
         response = self.request(url, method="POST", body=body)
         return response.json()["items"]
 
     def get_records_by_title(self, table_id: str, titles: list[str]) -> list[dict]:
-        body: FilterBody = {
-            "filter": {
-                "operator": "or",
-                "fields": [
-                    {"field": "title", "comparison": "is", "value": t} for t in titles
-                ],
-            }
-        }
+        fields = [
+            FilterElement(field="title", comparison="is", value=t) for t in titles
+        ]
+        body = {"filter": {"operator": "or", "fields": [asdict(f) for f in fields]}}
         url = f"{self.base_url}/applications/{table_id}/records/list/"
         response = self.request(url, method="POST", body=body)
         return response.json()["items"]
@@ -293,82 +327,84 @@ class SmartSuiteClient:
     # region update records
 
     def _update_request(
-        self, table_id: str, record_id: str, record: dict, method: Literal["PATCH", "PUT"]):
-            url = f"{self.base_url}/applications/{table_id}/records/{record_id}/"
-            response = self.request(url, method=method, body=record)
-            return response.json()
-        
-    def update_record(
-        self, table_id: str, record_id: str, record: dict
-    ) -> dict:
+        self,
+        table_id: str,
+        record_id: str,
+        record: dict,
+        method: Literal["PATCH", "PUT"],
+    ):
+        url = f"{self.base_url}/applications/{table_id}/records/{record_id}/"
+        response = self.request(url, method=method, body=record)
+        return response.json()
+
+    def update_record(self, table_id: str, record_id: str, record: dict) -> dict:
         """Update a single record, keeping existing field values."""
         return self._update_request(table_id, record_id, record, "PATCH")
 
-    def replace_record(
-            self, table_id: str, record_id: str, record: dict
-        ) -> dict:
-            """Destructively update a single record, removing existing field values."""
-            return self._update_request(table_id, record_id, record, "PUT")
+    def replace_record(self, table_id: str, record_id: str, record: dict) -> dict:
+        """Destructively update a single record, removing existing field values."""
+        return self._update_request(table_id, record_id, record, "PUT")
 
     def _bulk_update_request(
-            self,
-            table_id: str,
-            records: list[dict],
-            method: Literal["PATCH", "PUT"]
-        ) -> BulkRequestResponse:
-            """Bulk-update records in batches according to the maximum allowed updates per request.
-    
-            Args:
-                table_id:               Target application/table ID.
-                records:                Records to update (must include ``id``).
-                method:                 Either "PATCH" for non-destructure updates or "PUT" for destructive updates.
-            """
-            if any(record.get("id") is None for record in records):
-                raise ValueError("All bulk update records must have an 'id' field.")
-            
-            log.debug("Bulk updating %d records", len(records))
-            if not records:
-                return {"items": []}
-    
-            url = f"{self.base_url}/applications/{table_id}/records/bulk/"
-            updated_records: list[dict] = []
-            batches = _split_into_batches(self.max_bulk_request_size, records)
-            log.debug("Split into %d batch(es)", len(batches))
-    
-            for i, batch in enumerate(batches, 1):
-                log.debug("Processing batch %d / %d", i, len(batches))
-                response = self.request(url, method=method, body={"items": batch})
-                result = cast(BulkRequestResponse, response.json())
-                updated_records.extend(result["items"])
-    
-            return {"items": updated_records}
+        self, table_id: str, records: list[dict], method: Literal["PATCH", "PUT"]
+    ) -> BulkRequestResponse:
+        """Bulk-update records in batches according to the maximum allowed updates per request.
+
+        Args:
+            table_id:               Target application/table ID.
+            records:                Records to update (must include ``id``).
+            method:                 Either "PATCH" for non-destructure updates or "PUT" for destructive updates.
+        """
+        if any(record.get("id") is None for record in records):
+            raise ValueError("All bulk update records must have an 'id' field.")
+
+        log.debug("Bulk updating %d records", len(records))
+        if not records:
+            return {"items": []}
+
+        url = f"{self.base_url}/applications/{table_id}/records/bulk/"
+        updated_records: list[dict] = []
+        batches = _split_into_batches(self.max_bulk_request_size, records)
+        log.debug("Split into %d batch(es)", len(batches))
+
+        for i, batch in enumerate(batches, 1):
+            log.debug("Processing batch %d / %d", i, len(batches))
+            response = self.request(url, method=method, body={"items": batch})
+            result = cast(BulkRequestResponse, response.json())
+            updated_records.extend(result["items"])
+
+        return {"items": updated_records}
 
     def bulk_update_records(
-            self,
-            table_id: str,
-            records: list[dict],
-        ) -> BulkRequestResponse:
-            """Bulk-update records in batches according to the maximum allowed updates per request. Performs a non-destructive update.
-    
-            Args:
-                table_id:               Target application/table ID.
-                records:                Records to update (must include `id`).
-            """
-            return self._bulk_update_request(table_id=table_id, records=records, method="PATCH")
+        self,
+        table_id: str,
+        records: list[dict],
+    ) -> BulkRequestResponse:
+        """Bulk-update records in batches according to the maximum allowed updates per request. Performs a non-destructive update.
+
+        Args:
+            table_id:               Target application/table ID.
+            records:                Records to update (must include `id`).
+        """
+        return self._bulk_update_request(
+            table_id=table_id, records=records, method="PATCH"
+        )
 
     def bulk_replace_records(
-                self,
-                table_id: str,
-                records: list[dict],
-            ) -> BulkRequestResponse:
-                """Bulk-update records in batches according to the maximum allowed updates per request. Performs a destructive update.
-        
-                Args:
-                    table_id:               Target application/table ID.
-                    records:                Records to update (must include `id`).
-                """
-                return self._bulk_update_request(table_id=table_id, records=records, method="PUT")
-    
+        self,
+        table_id: str,
+        records: list[dict],
+    ) -> BulkRequestResponse:
+        """Bulk-update records in batches according to the maximum allowed updates per request. Performs a destructive update.
+
+        Args:
+            table_id:               Target application/table ID.
+            records:                Records to update (must include `id`).
+        """
+        return self._bulk_update_request(
+            table_id=table_id, records=records, method="PUT"
+        )
+
     # endregion update records
 
     # region add records
@@ -377,7 +413,9 @@ class SmartSuiteClient:
         response = self.request(url, method="POST", body=record)
         return response.json()
 
-    def bulk_add_new_records(self, table_id: str, records: list[dict]) -> BulkRequestResponse:
+    def bulk_add_new_records(
+        self, table_id: str, records: list[dict]
+    ) -> BulkRequestResponse:
         url = f"{self.base_url}/applications/{table_id}/records/bulk/"
         new_records: list[dict] = []
         for batch in _split_into_batches(self.max_bulk_request_size, records):
