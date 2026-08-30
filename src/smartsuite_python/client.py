@@ -102,7 +102,20 @@ FilterDateMode = Literal[
 class FilterDateValue:
     """Value used when filtering date and due-date fields."""
 
-    date_mode: FilterDateMode
+    date_mode: Literal[
+        "today",
+        "yesterday",
+        "one_week_ago",
+        "one_week_from_now",
+        "one_month_ago",
+        "one_month_from_now",
+        "one_year_ago",
+        "one_year_from_now",
+        "next_number_of_days",
+        "past_number_of_days",
+        "date_range",
+        "exact_date",
+    ]
     date_mode_value: str | int | list[str]
 
 
@@ -120,8 +133,40 @@ class FilterElement:
     """
 
     field: str
-    comparison: FilterComparison
-    value: FilterValue
+    comparison: Literal[
+        # string
+        "is",
+        "is_not",
+        "is_empty",
+        "is_not_empty",
+        "contains",
+        "not_contains",
+        # number
+        "is_equal_to",
+        "is_not_equal_to",
+        "is_greater_than",
+        "is_less_than",
+        "is_equal_or_greater_than",
+        "is_equal_or_less_than",
+        # select
+        "is_any_of",
+        "is_none_of",
+        "has_any_of",
+        "has_all_of",
+        "is_exactly",
+        "has_none_of",
+        # date
+        "is_before",
+        "is_on_or_before",
+        "is_on_or_after",
+        # due date
+        "is_overdue",
+        "is_not_overdue",
+        # files
+        "file_name_contains",
+        "file_type_is",
+    ]
+    value: str | int | float | bool | list[str] | FilterDateValue | None
 
 
 @dataclass
@@ -131,19 +176,13 @@ class _FilterBody:
 
 
 @dataclass
-class FilterBody:
-    filter: _FilterBody
-
-
-@dataclass
 class SortElement:
     field: str
     direction: Literal["asc", "desc"]
 
 
-# Keep as TypedDict for response handling
 class BulkRequestResponse(TypedDict):
-    items: list[dict]
+    items: list[dict[str, Any]]
 
 
 # endregion types
