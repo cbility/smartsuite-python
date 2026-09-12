@@ -181,8 +181,7 @@ class SortElement:
     direction: Literal["asc", "desc"]
 
 
-class BulkRequestResponse(TypedDict):
-    items: list[dict[str, Any]]
+BulkRequestResponse = list[dict[str, Any]]
 
 
 # endregion types
@@ -399,7 +398,7 @@ class SmartSuiteClient:
 
         log.debug("Bulk updating %d records", len(records))
         if not records:
-            return {"items": []}
+            return []
 
         url = f"{self.base_url}/applications/{table_id}/records/bulk/"
         updated_records: list[dict] = []
@@ -409,11 +408,13 @@ class SmartSuiteClient:
         for i, batch in enumerate(batches, 1):
             log.debug("Processing batch %d / %d", i, len(batches))
             response = self.request(url, method=method, body={"items": batch})
-            log.debug("Response status: %d, body: %s", response.status_code, response.text)
+            log.debug(
+                "Response status: %d, body: %s", response.status_code, response.text
+            )
             result = cast(BulkRequestResponse, response.json())
-            updated_records.extend(result["items"])
+            updated_records.extend(result)
 
-        return {"items": updated_records}
+        return updated_records
 
     def bulk_update_records(
         self,
@@ -461,8 +462,8 @@ class SmartSuiteClient:
         for batch in _split_into_batches(self.max_bulk_request_size, records):
             response = self.request(url, method="POST", body={"items": batch})
             result = cast(BulkRequestResponse, response.json())
-            new_records.extend(result["items"])
-        return {"items": new_records}
+            new_records.extend(result)
+        return new_records
 
     # endregion add records
 
