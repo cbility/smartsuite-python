@@ -409,6 +409,7 @@ class SmartSuiteClient:
         for i, batch in enumerate(batches, 1):
             log.debug("Processing batch %d / %d", i, len(batches))
             response = self.request(url, method=method, body={"items": batch})
+            log.debug("Response status: %d, body: %s", response.status_code, response.text)
             result = cast(BulkRequestResponse, response.json())
             updated_records.extend(result["items"])
 
